@@ -2,9 +2,6 @@ from django.core.management.base import BaseCommand
 import csv
 from productos.models import Producto
 
-
-
-
 class Command(BaseCommand):
     help = 'Actualiza precios y stock de productos desde un archivo CSV'
 
@@ -14,23 +11,37 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         archivo_csv = kwargs['archivo_csv']
         actualizados = 0
-        nuevos = 0
         no_encontrados = 0
+        errores = 0
 
         with open(archivo_csv, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=';')
+            self.stdout.write(self.style.NOTICE(f"Encabezados detectados: {reader.fieldnames}"))
+
             for fila in reader:
-                codigo = fila.get('CODIGO', '').strip()
-
                 try:
-                    producto = Producto.objects.get(codigo=codigo)
+                    codigo = fila.get('CODIGO', '').strip()
+                    if not codigo:
+                        continue  # ignorar filas sin código
 
-                    # Verificamos si cambió algo
-                    precio = float(fila.get('PRECIO', 0) or 0)
-                    precio_final = float(fila.get('PRECIO FINAL', 0) or 0)
-                    precio_utilidad = float(fila.get('PRECIO CON UTILIDAD (USD)', 0) or 0)
-                    stock = int(fila.get('STOCK', 0) or 0)
+                    producto = Producto.objects.filter(codigo=codigo).first()
+                    if not producto:
+                        no_encontrados += 1
+                        continue
 
+                    # Convertir valores numéricos
+                    def num(v):
+                        try:
+                            return float(v)
+                        except:
+                            return 0
+
+                    precio = num(fila.get('PRECIO', 0))
+                    precio_final = num(fila.get('PRECIO FINAL', 0))
+                    precio_utilidad = num(fila.get('PRECIO USD CON UTILIDAD', 0))
+                    stock = int(num(fila.get('STOCK', 0)))
+
+                    # Verificar cambios
                     cambios = False
                     if producto.precio != precio:
                         producto.precio = precio
@@ -49,12 +60,11 @@ class Command(BaseCommand):
                         producto.save()
                         actualizados += 1
 
-                except Producto.DoesNotExist:
-                    no_encontrados += 1
-                    # Opcional: crear el producto si no existe
-                    # Producto.objects.create(codigo=codigo, ...)
-                    # nuevos += 1
+                except Exception as e:
+                    errores += 1
+                    self.stdout.write(self.style.ERROR(f"Error en fila con código {codigo}: {e}"))
 
-        self.stdout.write(self.style.SUCCESS(
-            f'Actualización completada: {actualizados} productos modificados, {no_encontrados} no encontrados.'
-        ))
+        self.stdout.write(self.style.SUCCESS(f'✅ Actualización completada'))
+        self.stdout.write(self.style.SUCCESS(f'   ➜ Productos actualizados: {actualizados}'))
+        self.stdout.write(self.style.WARNING(f'   ➜ No encontrados: {no_encontrados}'))
+        self.stdout.write(self.style.ERROR(f'   ➜ Filas con errores: {errores}'))
