@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Productos</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .product-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            min-height: 380px;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+        .card-img-top {
+            height: 200px;
+            object-fit: contain;
+            background-color: #f8f9fa;
+        }
+        .pagination .page-link {
+            color: #0d6efd;
+        }
+        .pagination .active .page-link {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <h1 class="text-center mb-4">📦 Lista de Productos</h1>
+
+        <!-- Buscador -->
+        <form method="GET" class="mb-4 text-center">
+            <input type="text" name="q" class="form-control w-50 d-inline" 
+                   placeholder="Buscar por nombre o código" 
+                   value="{{ query|default:'' }}">
+            <button type="submit" class="btn btn-primary mt-2">Buscar</button>
+        </form>
+
+        <!-- Listado de productos -->
+        <div class="row">
+            {% for p in productos %}
+            <div class="col-md-3 mb-4">
+                <div class="card h-100 shadow-sm product-card">
+                    {% if p.imagen %}
+                        <img src="{{ p.imagen }}" class="card-img-top" alt="{{ p.detalle }}">
+                    {% else %}
+                        <img src="https://via.placeholder.com/200x200?text=Sin+Imagen" class="card-img-top" alt="Sin imagen">
+                    {% endif %}
+                    <div class="card-body d-flex flex-column">
+                        <h6 class="card-title text-truncate">{{ p.detalle }}</h6>
+                        <p class="text-muted small mb-1">Código: {{ p.codigo }}</p>
+                        <p class="text-success fw-bold fs-5 mb-3">${{ p.precio }}</p>
+                        <a href="/productos/{{ p.codigo }}/" class="btn btn-outline-primary btn-sm mt-auto w-100">
+                            🔍 Ver detalle
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center">No hay productos cargados.</p>
+            {% endfor %}
+        </div>
+
+        <!-- Paginación profesional -->
+        {% if productos.paginator.num_pages > 1 %}
+        <div class="d-flex justify-content-center mt-4">
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+
+                    <!-- Botón Anterior -->
+                    {% if productos.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ productos.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+                    {% endif %}
+
+                    <!-- Números de página -->
+                    {% for num in productos.paginator.page_range %}
+                        {% if num == 1 or num == productos.paginator.num_pages %}
+                            {% if productos.number == num %}
+                                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                            {% else %}
+                                <li class="page-item"><a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+                            {% endif %}
+                        {% elif num >= productos.number|add:'-2' and num <= productos.number|add:'2' %}
+                            {% if productos.number == num %}
+                                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                            {% else %}
+                                <li class="page-item"><a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+                            {% endif %}
+                        {% elif num == 2 or num == productos.paginator.num_pages|add:'-1' %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- Botón Siguiente -->
+                    {% if productos.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if query %}q={{ query }}&{% endif %}page={{ productos.next_page_number }}">Siguiente</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+                    {% endif %}
+
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
