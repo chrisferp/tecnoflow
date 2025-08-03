@@ -1,11 +1,12 @@
 from django.core.management.base import BaseCommand
 import csv
 import os
+import codecs
 from datetime import datetime
 from productos.models import Producto
 
 class Command(BaseCommand):
-    help = 'Importa productos desde un archivo CSV al modelo Producto'
+    help = 'Importa productos desde un archivo CSV al modelo Producto (versión estable)'
 
     def add_arguments(self, parser):
         parser.add_argument('archivo_csv', type=str, help='Ruta del archivo CSV a importar')
@@ -26,12 +27,19 @@ class Command(BaseCommand):
             sin_cambios = 0
             errores = 0
 
-            with open(archivo_csv, newline='', encoding='utf-8') as csvfile:
+            # ✅ Leer el CSV eliminando BOM y comillas SOLO de encabezados
+            with codecs.open(archivo_csv, 'r', encoding='utf-8-sig', errors='ignore') as csvfile:
                 reader = csv.DictReader(csvfile, delimiter=';')
+
+                # Normalizar encabezados
+                reader.fieldnames = [h.strip().replace('"', '') for h in reader.fieldnames]
                 self.stdout.write(self.style.NOTICE(f"Encabezados detectados: {reader.fieldnames}"))
 
                 for fila in reader:
                     try:
+                        # Limpiar claves vacías y valores
+                        fila = {k.strip(): (v.strip() if v else '') for k, v in fila.items() if k and k.strip()}
+
                         codigo = fila.get('CODIGO', '').strip()
                         if not codigo:
                             errores += 1
@@ -40,34 +48,34 @@ class Command(BaseCommand):
 
                         def num(valor):
                             try:
-                                return float(valor)
+                                return float(valor.replace(',', '.')) if valor else 0
                             except:
                                 return 0
 
-                        stock = int(num(fila.get('STOCK', 0)))
-                        precio = num(fila.get('PRECIO', 0))
-                        precio_final = num(fila.get('PRECIO FINAL', 0))
-                        precio_utilidad = num(fila.get('PRECIO USD CON UTILIDAD', 0))
-                        peso = num(fila.get('PESO', 0))
-                        alto = num(fila.get('ALTO', 0))
-                        ancho = num(fila.get('ANCHO', 0))
-                        largo = num(fila.get('LARGO', 0))
-                        impuesto_interno = num(fila.get('IMPUESTO_INTERNO', 0))
+                        stock = int(num(fila.get('STOCK')))
+                        precio = num(fila.get('PRECIO'))
+                        precio_final = num(fila.get('PRECIO FINAL'))
+                        precio_utilidad = num(fila.get('PRECIO USD CON UTILIDAD'))
+                        peso = num(fila.get('PESO'))
+                        alto = num(fila.get('ALTO'))
+                        ancho = num(fila.get('ANCHO'))
+                        largo = num(fila.get('LARGO'))
+                        impuesto_interno = num(fila.get('IMPUESTO_INTERNO'))
 
                         producto, creado = Producto.objects.update_or_create(
                             codigo=codigo,
                             defaults={
-                                'id_fabricante': fila.get('ID FABRICANTE', '').strip() or None,
-                                'detalle': fila.get('DETALLE', '').strip(),
-                                'iva': fila.get('IVA', '').strip() or None,
+                                'id_fabricante': fila.get('ID FABRICANTE') or None,
+                                'detalle': fila.get('DETALLE') or '',
+                                'iva': fila.get('IVA') or None,
                                 'stock': stock,
-                                'garantia': fila.get('GARANTIA', '').strip() or None,
-                                'moneda': fila.get('MONEDA', '').strip() or 'USD',
+                                'garantia': fila.get('GARANTIA') or None,
+                                'moneda': fila.get('MONEDA') or 'USD',
                                 'precio': precio,
                                 'precio_final': precio_final,
                                 'precio_utilidad': precio_utilidad,
-                                'imagen': fila.get('IMAGEN', '').strip() or None,
-                                'detalle_usuario': fila.get('DETALLE_USUARIO', '').strip() or None,
+                                'imagen': fila.get('IMAGEN') or None,
+                                'detalle_usuario': fila.get('DETALLE_USUARIO') or None,
                                 'peso': peso,
                                 'alto': alto,
                                 'ancho': ancho,
@@ -80,22 +88,12 @@ class Command(BaseCommand):
                             creados += 1
                             log.write(f"[CREADO] {codigo}\n")
                         else:
-                            # Detectar cambios
-                            cambios = []
-                            for campo, valor in producto.__dict__.items():
-                                if campo in fila and str(valor).strip() != str(fila[campo]).strip():
-                                    cambios.append(campo)
-
-                            if cambios:
-                                actualizados += 1
-                                log.write(f"[ACTUALIZADO] {codigo} -> {cambios}\n")
-                            else:
-                                sin_cambios += 1
-                                log.write(f"[SIN CAMBIOS] {codigo}\n")
+                            sin_cambios += 1
+                            log.write(f"[SIN CAMBIOS] {codigo}\n")
 
                     except Exception as e:
                         errores += 1
-                        log.write(f"[ERROR] Fila {fila} -> {e}\n")
+                        log.write(f"[ERROR] Fila {fila.get('CODIGO', 'SIN CODIGO')} -> {e}\n")
 
             # Resumen final
             log.write("\n" + "="*60 + "\n")

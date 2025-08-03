@@ -1,9 +1,11 @@
 from django.core.management.base import BaseCommand
 import csv
+import os
+import codecs
 from productos.models import Producto
 
 class Command(BaseCommand):
-    help = 'Actualiza precios y stock de productos desde un archivo CSV'
+    help = 'Actualiza precios y stock de productos desde un archivo CSV (versión estable)'
 
     def add_arguments(self, parser):
         parser.add_argument('archivo_csv', type=str, help='Ruta del archivo CSV a procesar')
@@ -14,12 +16,17 @@ class Command(BaseCommand):
         no_encontrados = 0
         errores = 0
 
-        with open(archivo_csv, newline='', encoding='utf-8') as csvfile:
+        # ✅ Leer el CSV eliminando BOM y comillas solo en encabezados
+        with codecs.open(archivo_csv, 'r', encoding='utf-8-sig', errors='ignore') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=';')
+            reader.fieldnames = [h.strip().replace('"', '') for h in reader.fieldnames]
             self.stdout.write(self.style.NOTICE(f"Encabezados detectados: {reader.fieldnames}"))
 
             for fila in reader:
                 try:
+                    # Limpiar claves vacías
+                    fila = {k.strip(): (v.strip() if v else '') for k, v in fila.items() if k and k.strip()}
+
                     codigo = fila.get('CODIGO', '').strip()
                     if not codigo:
                         continue  # ignorar filas sin código
@@ -29,19 +36,18 @@ class Command(BaseCommand):
                         no_encontrados += 1
                         continue
 
-                    # Convertir valores numéricos
+                    # Función segura para números
                     def num(v):
                         try:
-                            return float(v)
+                            return float(v.replace(',', '.')) if v else 0
                         except:
                             return 0
 
-                    precio = num(fila.get('PRECIO', 0))
-                    precio_final = num(fila.get('PRECIO FINAL', 0))
-                    precio_utilidad = num(fila.get('PRECIO USD CON UTILIDAD', 0))
-                    stock = int(num(fila.get('STOCK', 0)))
+                    precio = num(fila.get('PRECIO'))
+                    precio_final = num(fila.get('PRECIO FINAL'))
+                    precio_utilidad = num(fila.get('PRECIO USD CON UTILIDAD'))
+                    stock = int(num(fila.get('STOCK')))
 
-                    # Verificar cambios
                     cambios = False
                     if producto.precio != precio:
                         producto.precio = precio
