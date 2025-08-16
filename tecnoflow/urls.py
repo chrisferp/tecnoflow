@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from productos.views import lista_productos, detalle_producto, agregar_al_carrito, ver_carrito, eliminar_del_carrito, actualizar_carrito
-from productos.views import checkout
+from productos.views import checkout, completar_registro
 
 
 urlpatterns = [
@@ -13,5 +13,6 @@ urlpatterns = [
     path('carrito/eliminar/<str:codigo>/', eliminar_del_carrito, name='eliminar_del_carrito'),
     path('carrito/actualizar/', actualizar_carrito, name='actualizar_carrito'),
     path('checkout/', checkout, name='checkout'),
+    path('completar-registro/', completar_registro, name='completar_registro'),
 ]
 
